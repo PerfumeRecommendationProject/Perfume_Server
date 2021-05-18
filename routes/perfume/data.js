@@ -1,6 +1,7 @@
 var express = require("express");
 var router = express.Router();
 
+const authUtil = require("../../module/utils/authUtils");
 const defaultRes = require("../../module/utils/utils");
 const statusCode = require("../../module/utils/statusCode");
 const resMessage = require("../../module/utils/responseMessage");
@@ -64,6 +65,82 @@ router.post("/", async (req, res) => {
         [insertPerfumeDataResult.insertId, notes[noteIndex]]
       );
     }
+  }
+});
+
+/*
+향수 데이터 조회
+METHOD       : GET
+URL          : /perfume/{p_idx}
+*/
+
+router.get("/:p_idx", authUtil.isLoggedin, async (req, res, next) => {
+  const p_idx = req.params.p_idx;
+  var perfume = {
+    p_idx: p_idx,
+    p_name: "",
+    brand: "",
+    description: "",
+    notes: [],
+    image: "",
+    similarity: 0,
+    isScrapped: false,
+  };
+
+  try {
+    const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx = ?";
+    const selectPerfumeNotesQuery =
+      "SELECT note FROM Perfume_notes WHERE p_idx = ?";
+
+    const selectPerfumeResult = await db.queryParam_Parse(
+      selectPerfumeQuery,
+      p_idx
+    );
+
+    const selectPerfumeNotesResult = await db.queryParam_Parse(
+      selectPerfumeNotesQuery,
+      p_idx
+    );
+
+    perfume.p_name = selectPerfumeResult[0].p_name;
+    perfume.brand = selectPerfumeResult[0].brand;
+    perfume.description = selectPerfumeResult[0].description;
+
+    selectPerfumeNotesResult.forEach((item) => {
+      perfume.notes.push(item.note);
+    });
+
+    perfume.image = selectPerfumeResult[0].image;
+    if (req.decoded != null) {
+      const selectScrapPerfumeQuery =
+        "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
+      const selectScrapPerfumeResult = await db.queryParam_Arr(
+        selectScrapPerfumeQuery,
+        [perfume.p_idx, req.decoded.u_idx]
+      );
+
+      if (selectScrapPerfumeResult[0] != null) {
+        perfume.isScrapped = true;
+      }
+    }
+    res
+      .status(200)
+      .send(
+        defaultRes.successTrue(
+          statusCode.OK,
+          resMessage.SUCCESS_SELECT_PERFUME_DATA,
+          perfume
+        )
+      );
+  } catch (error) {
+    res
+      .status(200)
+      .send(
+        defaultRes.successFalse(
+          statusCode.INTERNAL_SERVER_ERROR,
+          resMessage.FAIL_SELECT_PERFUME_DATA
+        )
+      );
   }
 });
 

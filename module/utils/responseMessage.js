@@ -14,10 +14,6 @@ module.exports = {
   FAIL_LOGIN: "로그인 실패",
   NOT_CORRECT_PASSWORD: "비밀번호가 일치하지 않습니다.",
 
-  SUCCESS_SELECT_CATEGORY: "카테고리 조회 성공",
-  NOT_EXIST_CATEGORY: "카테고리가 존재하지 않습니다",
-  FAIL_SELECT_CATEGORY: "카테고리 조회 실패",
-
   SUCCESS_SCRAP: "향수 스크랩 성공",
   SUCCESS_DELETE_SCRAP: "스크랩한 향수 삭제 성공",
   FAIL_CHANGE_SCRAP_STATE: "향수 스크랩 상태 변경 실패",
@@ -33,4 +29,13 @@ module.exports = {
 
   SUCCESS_SEARCH_PERFUME_LIST: "향수 리스트 검색 성공",
   FAIL_SEARCH_PERFUME_LIST: "향수 리스트 검색 실패",
+
+  SUCCESS_RECOMMEND_PERFUME_NEW: "새로운 향수 추천 성공",
+  FAIL_RECOMMEND_PERFUME_NEW: "새로운 향수 추천 실패",
+
+  SUCCESS_RECOMMEND_PERFUME_BASED: "기존 향수기반 추천 성공",
+  FAIL_RECOMMEND_PERFUME_BASED: "기존 향수기반 추천 실패",
+
+  SUCCESS_SELECT_PERFUME_DATA: "향수 데이터 조회 성공",
+  FAIL_SELECT_PERFUME_DATA: "향수 데이터 조회 실패",
 };

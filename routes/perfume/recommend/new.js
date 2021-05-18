@@ -1,44 +1,44 @@
 var express = require("express");
 var router = express.Router();
 
-const authUtil = require("../../module/utils/authUtils");
-const defaultRes = require("../../module/utils/utils");
-const statusCode = require("../../module/utils/statusCode");
-const resMessage = require("../../module/utils/responseMessage");
-const db = require("../../module/pool");
+const crypto = require("crypto-promise");
+
+const authUtil = require("../../../module/utils/authUtils");
+const defaultRes = require("../../../module/utils/utils");
+const statusCode = require("../../../module/utils/statusCode");
+const resMessage = require("../../../module/utils/responseMessage");
+const db = require("../../../module/pool");
 
 /*
-향수 리스트 검색
-METHOD       : GET
-URL          : /perfume/search
+새로운 향수 추천
+METHOD       : POST
+URL          : /recommend/new
+BODY         : input_desc = 사용자 input_desc
 */
-
-router.get("/", authUtil.isLoggedin, async (req, res, next) => {
-  const p_name = req.query.p_name;
-  var perfume_list = new Array();
+router.post("/", authUtil.isLoggedin, async (req, res) => {
+  const input_desc = req.body.input_desc;
+  if (!input_desc) {
+    return res
+      .status(200)
+      .send(
+        defaultRes.successFalse(statusCode.BAD_REQUEST, resMessage.NULL_VALUE)
+      );
+  }
+  console.log(input_desc);
+  //머신러닝 모델에 input_desc 넘기고 추천 결과로 받은 p_idx가 [2, 3, 7]이라고 가정
+  const rec_result = [2, 3, 7];
 
   try {
-    const selectPerfumeQuery =
-      "SELECT * FROM Perfume WHERE p_name LIKE ? LIMIT 5";
+    var perfume_list = new Array();
+    //TODO : 향수 추천 결과 항상 세개로 고정되어있는지 이거보다 적개 나올 수도 있는지?? 물어보고 나중에 머신러닝 붙일 때 바꾸기
+    const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx IN (?, ?, ?)";
     const selectPerfumeNotesQuery =
       "SELECT note FROM Perfume_notes WHERE p_idx = ?";
-
-    const selectPerfumeResult = await db.queryParam_Parse(
-      selectPerfumeQuery,
-      `%${p_name}%`
-    );
-
-    if (!selectPerfumeResult[0]) {
-      return res
-        .status(200)
-        .send(
-          defaultRes.successTrue(
-            statusCode.OK,
-            resMessage.SUCCESS_SEARCH_PERFUME_LIST,
-            []
-          )
-        );
-    }
+    const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
+      rec_result[0],
+      rec_result[1],
+      rec_result[2],
+    ]);
 
     for (var perfumeIndex in selectPerfumeResult) {
       const selectPerfumeNotesResult = await db.queryParam_Parse(
@@ -67,6 +67,7 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
       });
 
       perfume.image = selectPerfumeResult[perfumeIndex].image;
+
       if (req.decoded != null) {
         const selectScrapPerfumeQuery =
           "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
@@ -82,26 +83,24 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
 
       perfume_list.push(perfume);
     }
-
-    res
+    return res
       .status(200)
       .send(
         defaultRes.successTrue(
           statusCode.OK,
-          resMessage.SUCCESS_SEARCH_PERFUME_LIST,
+          resMessage.SUCCESS_RECOMMEND_PERFUME_NEW,
           perfume_list
         )
       );
   } catch (error) {
-    res
+    return res
       .status(200)
       .send(
         defaultRes.successFalse(
           statusCode.INTERNAL_SERVER_ERROR,
-          resMessage.FAIL_SEARCH_PERFUME_LIST
+          resMessage.FAIL_RECOMMEND_PERFUME_NEW
         )
       );
   }
 });
-
 module.exports = router;
