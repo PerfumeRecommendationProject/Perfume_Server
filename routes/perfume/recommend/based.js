@@ -26,8 +26,11 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
   }
   console.log(p_idx);
   //머신러닝 모델에 input_desc 넘기고 추천 결과로 받은 p_idx가 [2, 3, 7]이라고 가정
-  const rec_result = [2, 3, 7];
-
+  const rec_result = [
+    { p_idx: 2, similarity: 80 },
+    { p_idx: 3, similarity: 60 },
+    { p_idx: 7, similarity: 70 },
+  ];
   try {
     var perfume_list = new Array();
     //TODO : 향수 추천 결과 항상 세개로 고정되어있는지 이거보다 적개 나올 수도 있는지?? 물어보고 나중에 머신러닝 붙일 때 바꾸기
@@ -35,9 +38,9 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
     const selectPerfumeNotesQuery =
       "SELECT note FROM Perfume_notes WHERE p_idx = ?";
     const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
-      rec_result[0],
-      rec_result[1],
-      rec_result[2],
+      rec_result[0].p_idx,
+      rec_result[1].p_idx,
+      rec_result[2].p_idx,
     ]);
 
     for (var perfumeIndex in selectPerfumeResult) {
@@ -53,7 +56,7 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
         description: "",
         notes: [],
         image: "",
-        similarity: 0,
+        similarity: rec_result[perfumeIndex].similarity,
         isScrapped: false,
       };
 
