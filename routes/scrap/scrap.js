@@ -13,69 +13,58 @@ const db = require("../../module/pool");
 스크랩 변경
 METHOD       : PUT
 URL          : /scrap
-BODY         : p_idx = 향수 고유 id(배열?)
-               u_idx = 사용자 고유 id
-               s_idx = 스크랩 고유 id (optional)
+BODY         : p_idx = 향수 고유 id
 */
 router.put("/", authUtil.isLoggedin, async (req, res) => {
-  const rec_perfume = req.body.p_idx;
-  if (req.decoded == null) {
+  const p_idx = req.body.p_idx;
+  if (!p_idx || !req.decoded) {
     return res
       .status(200)
       .send(
         defaultRes.successFalse(statusCode.BAD_REQUEST, resMessage.NULL_VALUE)
       );
   }
-
-  if (req.body.s_idx) {
-    const deleteScrapQuery = "DELETE FROM Scrap WHERE u_idx = ? and s_idx = ?";
-    const deleteScrapResult = await db.queryParam_Arr(deleteScrapQuery, [
+  try {
+    const selectScrapQuery =
+      "SELECT * FROM Scrap WHERE u_idx = ? and p_idx = ?";
+    const selectScrapResult = await db.queryParam_Arr(selectScrapQuery, [
       req.decoded.u_idx,
-      req.body.s_idx,
+      p_idx,
     ]);
 
-    if (!deleteScrapResult) {
-      res
+    if (!selectScrapResult[0]) {
+      const insertScrapQuery = "INSERT INTO Scrap (u_idx, p_idx) VALUES (?, ?)";
+      const insertScrapResult = await db.queryParam_Arr(insertScrapQuery, [
+        req.decoded.u_idx,
+        p_idx,
+      ]);
+
+      return res
         .status(200)
-        .send(
-          defaultRes.successFalse(statusCode.OK, resMessage.FAIL_DELETE_SCRAP)
-        );
+        .send(defaultRes.successTrue(statusCode.OK, resMessage.SUCCESS_SCRAP));
     } else {
-      res
+      const deleteScrapQuery =
+        "DELETE FROM Scrap WHERE u_idx = ? and p_idx = ?";
+      const deleteScrapResult = await db.queryParam_Arr(deleteScrapQuery, [
+        req.decoded.u_idx,
+        p_idx,
+      ]);
+
+      return res
         .status(200)
         .send(
           defaultRes.successTrue(statusCode.OK, resMessage.SUCCESS_DELETE_SCRAP)
         );
     }
-  } else {
-    const insertScrapQuery =
-      "INSERT INTO Scrap (u_idx, input_desc) VALUES (?, ?)";
-    const insertScrapPerfumeQuery =
-      "INSERT INTO Scrap_perfume (s_idx, p_idx) VALUES (?, ?)";
-
-    const insertScrapResult = JSON.stringify(
-      await db.queryParam_Arr(insertScrapQuery, [
-        req.decoded.u_idx,
-        req.body.input_desc,
-      ])
-    );
-    //TODO: Scrap_perfume 테이블에 안들어감
-    for (var index in rec_perfume) {
-      const insertScrapPerfumeResult = await db.queryParam_Arr(
-        insertScrapPerfumeQuery,
-        [insertScrapResult[0].insertId, rec_perfume[index]]
+  } catch (error) {
+    return res
+      .status(200)
+      .send(
+        defaultRes.successFalse(
+          statusCode.INTERNAL_SERVER_ERROR,
+          resMessage.FAIL_CHANGE_SCRAP_STATE
+        )
       );
-    }
-
-    if (!insertScrapResult) {
-      res
-        .status(200)
-        .send(defaultRes.successFalse(statusCode.OK, resMessage.FAIL_SCRAP));
-    } else {
-      res
-        .status(200)
-        .send(defaultRes.successTrue(statusCode.OK, resMessage.SUCCESS_SCRAP));
-    }
   }
 });
 
@@ -85,94 +74,82 @@ METHOD       : GET
 URL          : /scrap
 */
 router.get("/", authUtil.isLoggedin, async (req, res, next) => {
-  const selectScrapQuery = "SELECT * FROM Scrap WHERE u_idx = ?";
-  const selectScrapPerfumeQuery = "SELECT * FROM Scrap_perfume WHERE s_idx = ?";
-  const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx = ?";
-  const selectPerfumeNotesQuery =
-    "SELECT note FROM Perfume_notes WHERE p_idx = ?";
-  const selectPerfumeBrandQuery = "SELECT * FROM Brand WHERE p_idx = ?";
+  var perfume_list = new Array();
 
-  const selectScrapResult = await db.queryParam_Parse(
-    selectScrapQuery,
-    req.decoded.u_idx
-  );
-
-  if (!selectScrapResult) {
-    res
+  if (!req.decoded) {
+    return res
       .status(200)
       .send(
-        defaultRes.successFalse(statusCode.OK, resMessage.FAIL_SELECT_SCRAP)
+        defaultRes.successFalse(statusCode.BAD_REQUEST, resMessage.NULL_VALUE)
       );
-  } else {
-    if (selectScrapResult[0] == null) {
-      res
+  }
+
+  try {
+    const selectScrapQuery =
+      "SELECT * FROM Perfume JOIN Scrap ON Perfume.p_idx = Scrap.p_idx WHERE Scrap.u_idx = ?";
+    const selectScrapResult = await db.queryParam_Parse(
+      selectScrapQuery,
+      req.decoded.u_idx
+    );
+
+    if (!selectScrapResult[0]) {
+      return res
         .status(200)
-        .send(
-          defaultRes.successTrue(
-            statusCode.OK,
-            resMessage.NOT_EXIST_SCRAP,
-            selectScrapResult
-          )
-        );
-    } else {
-      var scrapArray = new Array();
+        .send(defaultRes)
+        .successTrue(statusCode.OK, resMessage.NOT_EXIST_SCRAP);
+    }
 
-      var scrap = {
-        input_desc: "",
-        rec_perfume: [],
-      };
-
+    for (var perfumeIndex in selectScrapResult) {
       var perfume = {
         p_idx: "",
         p_name: "",
         brand: "",
         description: "",
-        notes: "",
+        notes: [],
         image: "",
+        similarity: 0,
+        isScrapped: true,
       };
 
-      for (var i = 0; i < selectScrapResult.length; i++) {
-        const selectScrapPerfumeResult = await db.queryParam_Parse(
-          selectScrapPerfumeQuery,
-          selectScrapResult[i].s_idx
-        );
+      perfume.p_idx = selectScrapResult[perfumeIndex].p_idx;
+      perfume.p_name = selectScrapResult[perfumeIndex].p_name;
+      perfume.brand = selectScrapResult[perfumeIndex].brand;
+      perfume.description = selectScrapResult[perfumeIndex].description;
 
-        for (var perfumeIndex in selectScrapPerfumeResult) {
-          const selectPerfumeResult = await db.queryParam_Parse(
-            selectPerfumeQuery,
-            selectScrapPerfumeResult[perfumeIndex].p_idx
-          );
-          const selectPerfumeNotesResult = await db.queryParam_Parse(
-            selectPerfumeNotesQuery,
-            selectScrapPerfumeResult[perfumeIndex].p_idx
-          );
-          const selectPerfumeBrandResult = await db.queryParam_Parse(
-            selectPerfumeBrandQuery,
-            selectScrapPerfumeResult[perfumeIndex].p_idx
-          );
+      const selectPerfumeNotesQuery =
+        "SELECT * FROM Perfume_notes WHERE p_idx = ?";
+      const selectPerfumeNotesResult = await db.queryParam_Parse(
+        selectPerfumeNotesQuery,
+        selectScrapResult[perfumeIndex].p_idx
+      );
 
-          scrap.input_desc = selectScrapPerfumeResult[0].input_desc;
-          perfume.p_idx = selectPerfumeResult[0].p_idx;
-          perfume.p_name = selectPerfumeResult[0].p_name;
-          perfume.brand = selectPerfumeBrandResult[0].b_name;
-          perfume.description = selectPerfumeResult[0].description;
-          perfume.notes = selectPerfumeNotesResult;
-          perfume.image = selectPerfumeNotesResult[0].image;
+      selectPerfumeNotesResult.forEach((item) => {
+        perfume.notes.push(item.note);
+      });
 
-          scrap.rec_perfume.push(perfume);
-        }
-        scrapArray.push(scrap);
-      }
-      res
-        .status(200)
-        .send(
-          defaultRes.successTrue(
-            statusCode.OK,
-            resMessage.SUCCESS_SELECT_SCRAP,
-            scrapArray
-          )
-        );
+      perfume.image = selectScrapResult[perfumeIndex].image;
+
+      perfume_list.push(perfume);
     }
+
+    res
+      .status(200)
+      .send(
+        defaultRes.successTrue(
+          statusCode.OK,
+          resMessage.SUCCESS_SELECT_SCRAP,
+          perfume_list
+        )
+      );
+  } catch (error) {
+    return res
+      .status(200)
+      .send(
+        defaultRes.successFalse(
+          statusCode.INTERNAL_SERVER_ERROR,
+          resMessage.FAIL_SELECT_SCRAP
+        )
+      );
   }
 });
 

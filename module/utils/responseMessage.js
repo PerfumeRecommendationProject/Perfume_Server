@@ -18,17 +18,13 @@ module.exports = {
   NOT_EXIST_CATEGORY: "카테고리가 존재하지 않습니다",
   FAIL_SELECT_CATEGORY: "카테고리 조회 실패",
 
-  SUCCESS_SCRAP: "향수 추천결과 스크랩 성공",
-  FAIL_SCRAP: "향수 추천결과 스크랩 실패",
+  SUCCESS_SCRAP: "향수 스크랩 성공",
+  SUCCESS_DELETE_SCRAP: "스크랩한 향수 삭제 성공",
+  FAIL_CHANGE_SCRAP_STATE: "향수 스크랩 상태 변경 실패",
 
-  SUCCESS_SELECT_SCRAP: "스크랩한 향수 추천결과 조회 성공",
-  FAIL_SELECT_SCRAP: "스크랩한 향수 추천결과 조회 실패",
-  NOT_EXIST_SCRAP: "스크랩한 향수 추천결과가 존재하지 않습니다",
-
-  FAIL_SELECT_SCRAP_TF: "스크랩 여부 조회 실패",
-
-  SUCCESS_DELETE_SCRAP: "스크랩한 향수 추천결과 삭제 성공",
-  FAIL_DELETE_SCRAP: "스크랩한 향수 추천결과 삭제 실패",
+  SUCCESS_SELECT_SCRAP: "스크랩한 향수 조회 성공",
+  FAIL_SELECT_SCRAP: "스크랩한 향수 조회 실패",
+  NOT_EXIST_SCRAP: "스크랩한 향수가 존재하지 않습니다",
 
   NO_TOKEN_VALUE: "토큰 값이 없습니다",
   EXPIRED_TOKEN: "유효하지 않은 토큰입니다",

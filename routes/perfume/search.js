@@ -13,10 +13,10 @@ METHOD       : GET
 URL  
 */
 
-router.get("/", async (req, res, next) => {
+router.get("/", authUtil.isLoggedin, async (req, res, next) => {
   const p_name = req.query.p_name;
-
   var perfume_list = new Array();
+
   try {
     const selectPerfumeQuery =
       "SELECT * FROM Perfume WHERE p_name LIKE ? LIMIT 5";
@@ -42,6 +42,7 @@ router.get("/", async (req, res, next) => {
         notes: [],
         image: "",
         similarity: 0,
+        isScrapped: false,
       };
 
       perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
@@ -54,6 +55,18 @@ router.get("/", async (req, res, next) => {
       });
 
       perfume.image = selectPerfumeResult[perfumeIndex].image;
+      if (req.decoded != null) {
+        const selectScrapPerfumeQuery =
+          "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
+        const selectScrapPerfumeResult = await db.queryParam_Arr(
+          selectScrapPerfumeQuery,
+          [perfume.p_idx, req.decoded.u_idx]
+        );
+
+        if (selectScrapPerfumeResult[0] != null) {
+          perfume.isScrapped = true;
+        }
+      }
 
       perfume_list.push(perfume);
     }
