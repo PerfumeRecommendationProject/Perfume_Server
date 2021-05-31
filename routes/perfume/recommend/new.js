@@ -8,6 +8,7 @@ const defaultRes = require("../../../module/utils/utils");
 const statusCode = require("../../../module/utils/statusCode");
 const resMessage = require("../../../module/utils/responseMessage");
 const db = require("../../../module/pool");
+const { PythonShell } = require("python-shell");
 
 /*
 새로운 향수 추천
@@ -24,87 +25,216 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
         defaultRes.successFalse(statusCode.BAD_REQUEST, resMessage.NULL_VALUE)
       );
   }
-  console.log(input_desc);
-  //머신러닝 모델에 input_desc 넘기고 추천 결과로 받은 p_idx가 [2, 3, 7]이라고 가정
-  const rec_result = [
-    { p_idx: 2, similarity: 80 },
-    { p_idx: 3, similarity: 60 },
-    { p_idx: 7, similarity: 70 },
-  ];
 
-  try {
-    var perfume_list = new Array();
-    //TODO : 향수 추천 결과 항상 세개로 고정되어있는지 이거보다 적개 나올 수도 있는지?? 물어보고 나중에 머신러닝 붙일 때 바꾸기
-    const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx IN (?, ?, ?)";
-    const selectPerfumeNotesQuery =
-      "SELECT note FROM Perfume_notes WHERE p_idx = ?";
-    const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
-      rec_result[0].p_idx,
-      rec_result[1].p_idx,
-      rec_result[2].p_idx,
-    ]);
+  let options = {
+    scriptPath: "/home/ubuntu/perfume_PJ/routes/main",
+    // scriptPath: "C:/Users/s_0hyeon/Desktop/perfume_PJ/routes/main",
+    args: [input_desc],
+  };
+  let python_code = new PythonShell("perfume_recommendation.py", options);
 
-    for (var perfumeIndex in selectPerfumeResult) {
-      const selectPerfumeNotesResult = await db.queryParam_Parse(
-        selectPerfumeNotesQuery,
-        selectPerfumeResult[perfumeIndex].p_idx
-      );
+  const rec_perfume = new Array();
 
-      var perfume = {
-        p_idx: "",
-        p_name: "",
-        brand: "",
-        description: "",
-        notes: [],
-        image: "",
-        similarity: rec_result[perfumeIndex].similarity,
-        isScrapped: false,
+  python_code.on("message", (message) => {
+    slice_message = message.slice(1, message.length - 1).split(",");
+
+    for (var i = 0; i < 3; i++) {
+      result = slice_message[i].split(":");
+
+      var data = {
+        p_idx: result[0].trim(),
+        similarity: result[1].trim(),
       };
 
-      perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
-      perfume.p_name = selectPerfumeResult[perfumeIndex].p_name;
-      perfume.brand = selectPerfumeResult[perfumeIndex].brand;
-      perfume.description = selectPerfumeResult[perfumeIndex].description;
-
-      selectPerfumeNotesResult.forEach((item) => {
-        perfume.notes.push(item.note);
-      });
-
-      perfume.image = selectPerfumeResult[perfumeIndex].image;
-
-      if (req.decoded != null) {
-        const selectScrapPerfumeQuery =
-          "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
-        const selectScrapPerfumeResult = await db.queryParam_Arr(
-          selectScrapPerfumeQuery,
-          [perfume.p_idx, req.decoded.u_idx]
-        );
-
-        if (selectScrapPerfumeResult[0] != null) {
-          perfume.isScrapped = true;
-        }
-      }
-
-      perfume_list.push(perfume);
+      rec_perfume.push(data);
     }
-    return res
-      .status(200)
-      .send(
-        defaultRes.successTrue(
-          statusCode.OK,
-          resMessage.SUCCESS_RECOMMEND_PERFUME_NEW,
-          perfume_list
-        )
-      );
-  } catch (error) {
-    return res
-      .status(200)
-      .send(
-        defaultRes.successFalse(
-          statusCode.INTERNAL_SERVER_ERROR,
-          resMessage.FAIL_RECOMMEND_PERFUME_NEW
-        )
-      );
-  }
+  });
+
+  python_code.end(async (err) => {
+    if (err) {
+      console.log(err);
+      return res
+        .status(200)
+        .send(defaultRes.successTrue(statusCode.OK, "분석실패", err));
+    }
+    try {
+      var perfume_list = new Array();
+
+      const selectPerfumeQuery =
+        "SELECT * FROM Perfume WHERE p_idx IN (?, ?, ?)";
+
+      const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
+        rec_perfume[0].p_idx,
+        rec_perfume[1].p_idx,
+        rec_perfume[2].p_idx,
+      ]);
+
+      var rec_perfume_index = 0;
+      for (var perfumeIndex in selectPerfumeResult) {
+        var perfume = {
+          p_idx: "",
+          p_name: "",
+          brand: "",
+          description: "",
+          notes: [],
+          image: "",
+          similarity: rec_perfume[rec_perfume_index].similarity,
+          isScrapped: false,
+        };
+
+        perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
+        perfume.p_name = selectPerfumeResult[perfumeIndex].p_name;
+        perfume.brand = selectPerfumeResult[perfumeIndex].brand;
+        perfume.description = selectPerfumeResult[perfumeIndex].description
+          .trim()
+          .replace(/\"+/gi, '"')
+          .replace(/\//gi, ",");
+        perfume.notes = selectPerfumeResult[perfumeIndex].notes
+          .trim()
+          .replace(/\/ /gm, "/")
+          .split("/");
+
+        perfume.image = selectPerfumeResult[perfumeIndex].image;
+
+        if (req.decoded != null) {
+          const selectScrapPerfumeQuery =
+            "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
+          const selectScrapPerfumeResult = await db.queryParam_Arr(
+            selectScrapPerfumeQuery,
+            [perfume.p_idx, req.decoded.u_idx]
+          );
+
+          if (selectScrapPerfumeResult[0] != null) {
+            perfume.isScrapped = true;
+          }
+        }
+
+        perfume_list.push(perfume);
+        rec_perfume_index += 1;
+      }
+      return res
+        .status(200)
+        .send(
+          defaultRes.successTrue(
+            statusCode.OK,
+            resMessage.SUCCESS_RECOMMEND_PERFUME_NEW,
+            perfume_list
+          )
+        );
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(200)
+        .send(
+          defaultRes.successFalse(
+            statusCode.INTERNAL_SERVER_ERROR,
+            resMessage.FAIL_RECOMMEND_PERFUME_NEW
+          )
+        );
+    }
+  });
+
+  //   PythonShell.run("perfume_recommendation.py", options, (err, data) => {
+  //     if (err) {
+  //       console.log(err);
+  //       return res
+  //         .status(200)
+  //         .send(defaultRes.successTrue(statusCode.OK, "분석실패", err));
+  //     }
+  //     const rec_perfume = new Array();
+  //     for (item in data) {
+  //       var result = {
+  //         p_idx: item,
+  //         similarity: data[item],
+  //       };
+  //       rec_perfume.push(result);
+  //     }
+
+  //     try {
+  //       var perfume_list = new Array();
+
+  //       const selectPerfumeQuery =
+  //         "SELECT * FROM Perfume WHERE p_idx IN (?, ?, ?)";
+
+  //       const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
+  //         rec_perfume[0].p_idx,
+  //         rec_perfume[1].p_idx,
+  //         rec_perfume[2].p_idx,
+  //       ]);
+
+  //       var rec_perfume_index = 0;
+  //       for (var perfumeIndex in selectPerfumeResult) {
+  //         var perfume = {
+  //           p_idx: "",
+  //           p_name: "",
+  //           brand: "",
+  //           description: "",
+  //           notes: [],
+  //           image: "",
+  //           similarity: rec_perfume[rec_perfume_index].similarity,
+  //           isScrapped: false,
+  //         };
+
+  //         perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
+  //         perfume.p_name = selectPerfumeResult[perfumeIndex].p_name;
+  //         perfume.brand = selectPerfumeResult[perfumeIndex].brand;
+  //         perfume.description = selectPerfumeResult[perfumeIndex].description
+  //           .trim()
+  //           .replace(/\"+/gi, '"')
+  //           .replace(/\//gi, ",");
+  //         perfume.notes = selectPerfumeResult[perfumeIndex].notes
+  //           .trim()
+  //           .replace(/\/ /gm, "/")
+  //           .split("/");
+
+  //         perfume.image = selectPerfumeResult[perfumeIndex].image;
+
+  //         if (req.decoded != null) {
+  //           const selectScrapPerfumeQuery =
+  //             "SELECT * FROM Scrap WHERE p_idx = ? and u_idx = ?";
+  //           const selectScrapPerfumeResult = await db.queryParam_Arr(
+  //             selectScrapPerfumeQuery,
+  //             [perfume.p_idx, req.decoded.u_idx]
+  //           );
+
+  //           if (selectScrapPerfumeResult[0] != null) {
+  //             perfume.isScrapped = true;
+  //           }
+  //         }
+
+  //         perfume_list.push(perfume);
+  //         rec_result_index = rec_result_index + 1;
+  //       }
+  //       return res
+  //         .status(200)
+  //         .send(
+  //           defaultRes.successTrue(
+  //             statusCode.OK,
+  //             resMessage.SUCCESS_RECOMMEND_PERFUME_NEW,
+  //             perfume_list
+  //           )
+  //         );
+  //     } catch (error) {
+  //         console.log(error)
+  //       return res
+  //         .status(200)
+  //         .send(
+  //           defaultRes.successFalse(
+  //             statusCode.INTERNAL_SERVER_ERROR,
+  //             resMessage.FAIL_RECOMMEND_PERFUME_NEW
+  //           )
+  //         );
+  //     }
+
+  //     // fs.writeFileSync(
+  //     //   "/home/ubuntu/kusitms_companyPJ/routes/analyze_result.json",
+  //     //   data
+  //     // );
+  //     // const result = JSON.parse(data);
+
+  //     return res
+  //       .status(200)
+  //       .send(defaultRes.successTrue(statusCode.OK, "분석성공", data));
+  //   });
 });
 module.exports = router;

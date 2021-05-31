@@ -35,8 +35,6 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
     var perfume_list = new Array();
     //TODO : 향수 추천 결과 항상 세개로 고정되어있는지 이거보다 적개 나올 수도 있는지?? 물어보고 나중에 머신러닝 붙일 때 바꾸기
     const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx IN (?, ?, ?)";
-    const selectPerfumeNotesQuery =
-      "SELECT note FROM Perfume_notes WHERE p_idx = ?";
     const selectPerfumeResult = await db.queryParam_Arr(selectPerfumeQuery, [
       rec_result[0].p_idx,
       rec_result[1].p_idx,
@@ -44,11 +42,6 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
     ]);
 
     for (var perfumeIndex in selectPerfumeResult) {
-      const selectPerfumeNotesResult = await db.queryParam_Parse(
-        selectPerfumeNotesQuery,
-        selectPerfumeResult[perfumeIndex].p_idx
-      );
-
       var perfume = {
         p_idx: "",
         p_name: "",
@@ -63,11 +56,14 @@ router.post("/", authUtil.isLoggedin, async (req, res) => {
       perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
       perfume.p_name = selectPerfumeResult[perfumeIndex].p_name;
       perfume.brand = selectPerfumeResult[perfumeIndex].brand;
-      perfume.description = selectPerfumeResult[perfumeIndex].description;
-
-      selectPerfumeNotesResult.forEach((item) => {
-        perfume.notes.push(item.note);
-      });
+      perfume.description = selectPerfumeResult[perfumeIndex].description
+        .trim()
+        .replace(/\"+/gi, '"')
+        .replace(/\//gi, ",");
+      perfume.notes = selectPerfumeResult[perfumeIndex].notes
+        .trim()
+        .replace(/\/ /gm, "/")
+        .split("/");
 
       perfume.image = selectPerfumeResult[perfumeIndex].image;
 

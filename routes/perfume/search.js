@@ -20,8 +20,6 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
   try {
     const selectPerfumeQuery =
       "SELECT * FROM Perfume WHERE p_name LIKE ? LIMIT 5";
-    const selectPerfumeNotesQuery =
-      "SELECT note FROM Perfume_notes WHERE p_idx = ?";
 
     const selectPerfumeResult = await db.queryParam_Parse(
       selectPerfumeQuery,
@@ -41,10 +39,10 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
     }
 
     for (var perfumeIndex in selectPerfumeResult) {
-      const selectPerfumeNotesResult = await db.queryParam_Parse(
-        selectPerfumeNotesQuery,
-        selectPerfumeResult[perfumeIndex].p_idx
-      );
+      // const selectPerfumeNotesResult = await db.queryParam_Parse(
+      //   selectPerfumeNotesQuery,
+      //   selectPerfumeResult[perfumeIndex].p_idx
+      // );
 
       var perfume = {
         p_idx: "",
@@ -60,11 +58,14 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
       perfume.p_idx = selectPerfumeResult[perfumeIndex].p_idx;
       perfume.p_name = selectPerfumeResult[perfumeIndex].p_name;
       perfume.brand = selectPerfumeResult[perfumeIndex].brand;
-      perfume.description = selectPerfumeResult[perfumeIndex].description;
-
-      selectPerfumeNotesResult.forEach((item) => {
-        perfume.notes.push(item.note);
-      });
+      perfume.description = selectPerfumeResult[perfumeIndex].description
+        .trim()
+        .replace(/\"+/gi, '"')
+        .replace(/\//gi, ",");
+      perfume.notes = selectPerfumeResult[perfumeIndex].notes
+        .trim()
+        .replace(/\/ /gm, "/")
+        .split("/");
 
       perfume.image = selectPerfumeResult[perfumeIndex].image;
       if (req.decoded != null) {

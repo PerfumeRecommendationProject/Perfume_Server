@@ -114,18 +114,14 @@ router.get("/", authUtil.isLoggedin, async (req, res, next) => {
       perfume.p_idx = selectScrapResult[perfumeIndex].p_idx;
       perfume.p_name = selectScrapResult[perfumeIndex].p_name;
       perfume.brand = selectScrapResult[perfumeIndex].brand;
-      perfume.description = selectScrapResult[perfumeIndex].description;
-
-      const selectPerfumeNotesQuery =
-        "SELECT * FROM Perfume_notes WHERE p_idx = ?";
-      const selectPerfumeNotesResult = await db.queryParam_Parse(
-        selectPerfumeNotesQuery,
-        selectScrapResult[perfumeIndex].p_idx
-      );
-
-      selectPerfumeNotesResult.forEach((item) => {
-        perfume.notes.push(item.note);
-      });
+      perfume.description = selectScrapResult[perfumeIndex].description
+        .trim()
+        .replace(/\"+/gi, '"')
+        .replace(/\//gi, ",");
+      perfume.notes = selectScrapResult[perfumeIndex].notes
+        .trim()
+        .replace(/\/ /gm, "/")
+        .split("/");
 
       perfume.image = selectScrapResult[perfumeIndex].image;
 

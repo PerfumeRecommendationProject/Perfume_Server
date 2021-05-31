@@ -19,11 +19,11 @@ router.post("/", async (req, res) => {
     .readFileSync("final_perfume_data.csv", { encoding: "utf-8" })
     .toString();
 
-  const rows = data.split("\r\n");
+  const rows = data.split("png");
   const result = [];
 
   for (var rowIndex in rows) {
-    var row = rows[rowIndex].split(",", -1);
+    var row = rows[rowIndex].split("#", -1);
 
     if (rowIndex === "0") {
       var columns = row;
@@ -38,23 +38,25 @@ router.post("/", async (req, res) => {
   }
 
   for (var resultIndex in result) {
+    console.log(result);
+    const p_idx = result[resultIndex].p_idx;
+    const p_idx_02 = result[resultIndex].p_idx_02;
     const p_name = result[resultIndex].Name;
     const brand = result[resultIndex].Brand;
-    const notes = result[resultIndex].Notes.split("#");
+    const description = result[resultIndex].Description;
+    const notes = result[resultIndex].Notes.split(",");
     // const description = result[resultIndex].Description.trim();
     const image = result[resultIndex].Image_URL;
-    const description = result[resultIndex].Description;
-    console.log(p_name);
 
     const insertPerfumeDataQuery =
-      "INSERT INTO Perfume (p_name, brand, description, image) VALUES (?, ?, ?, ?)";
+      "INSERT INTO Perfume (p_idx, p_idx_02, p_name, brand, description, image) VALUES (?, ?, ?, ?, ?, ?)";
 
     const insertPerfumeNoteQuery =
       "INSERT INTO Perfume_notes (p_idx, note) VALUES (?, ?)";
 
     let insertPerfumeDataResult = await db.queryParam_Arr(
       insertPerfumeDataQuery,
-      [p_name, brand, description, image]
+      [p_idx, p_idx_02, p_name, brand, description, image]
     );
     //insertPerfumeDataResult = insertPerfumeDataResult;
     // console.log(insertPerfumeDataResult[0]);
@@ -62,7 +64,7 @@ router.post("/", async (req, res) => {
     for (var noteIndex in notes) {
       const insertPerfumeNoteResult = await db.queryParam_Arr(
         insertPerfumeNoteQuery,
-        [insertPerfumeDataResult.insertId, notes[noteIndex]]
+        [p_idx, notes[noteIndex]]
       );
     }
   }
@@ -86,30 +88,24 @@ router.get("/:p_idx", authUtil.isLoggedin, async (req, res, next) => {
     similarity: 0,
     isScrapped: false,
   };
-
   try {
     const selectPerfumeQuery = "SELECT * FROM Perfume WHERE p_idx = ?";
     const selectPerfumeNotesQuery =
       "SELECT note FROM Perfume_notes WHERE p_idx = ?";
-
     const selectPerfumeResult = await db.queryParam_Parse(
       selectPerfumeQuery,
       p_idx
     );
-
     const selectPerfumeNotesResult = await db.queryParam_Parse(
       selectPerfumeNotesQuery,
       p_idx
     );
-
     perfume.p_name = selectPerfumeResult[0].p_name;
     perfume.brand = selectPerfumeResult[0].brand;
     perfume.description = selectPerfumeResult[0].description;
-
     selectPerfumeNotesResult.forEach((item) => {
       perfume.notes.push(item.note);
     });
-
     perfume.image = selectPerfumeResult[0].image;
     if (req.decoded != null) {
       const selectScrapPerfumeQuery =
@@ -118,7 +114,6 @@ router.get("/:p_idx", authUtil.isLoggedin, async (req, res, next) => {
         selectScrapPerfumeQuery,
         [perfume.p_idx, req.decoded.u_idx]
       );
-
       if (selectScrapPerfumeResult[0] != null) {
         perfume.isScrapped = true;
       }
